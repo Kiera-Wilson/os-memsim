@@ -31,6 +31,16 @@ public:
 
     uint32_t createProcess();
     void addVariableToProcess(uint32_t pid, std::string var_name, DataType type, uint32_t size, uint32_t address);
+    uint32_t getVariableVirtualAddress(int pid);
+    int findOpenPageSpace(uint32_t pid, int page_size, int page_number, uint32_t virtual_address);
+    uint32_t insertVariableOnPage(int pid, int page_size, std::string variable_name, uint32_t num_elements, DataType type);
+    int getVariableSize(DataType varType);
+    std::vector<Variable*> getVariables(int pid);
+    void removeVariable(int pid, int pos);
+    bool isValidPID(int pid);
+    bool isValidVarName(int pid, std::string variable_name);
+    bool isValidSetVar(int pid, std::string variable_name);
+    DataType getVarDataType(int pid, std::string var_name);
     void print();
 };
 

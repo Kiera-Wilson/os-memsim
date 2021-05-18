@@ -28,10 +28,32 @@ void PageTable::addEntry(uint32_t pid, int page_number)
 {
     // Combination of pid and page number act as the key to look up frame number
     std::string entry = std::to_string(pid) + "|" + std::to_string(page_number);
+    std::map<std::string, int>::iterator it;
 
     int frame = 0; 
+    std::vector<std::string> tableKeys = sortedKeys();
+    int keySize = tableKeys.size();
+    bool frames[keySize];
     // Find free frame
     // TODO: implement this!
+    if (_table.count(entry) > 0)
+    {
+        //do nothing bc an entry for this page already exists
+        
+    }else{
+        //loop through table, set mapped entries to true
+        for( it = _table.begin(); it != _table.end(); it++){
+            frames[it->second] = true;
+        }
+        //loop through frames
+        for(int i =0; i < keySize; i++){
+            //if a frame didnt get set to true its not being used
+            if(frames[i]!= true){
+                frame = i;
+            }
+        }
+
+    }
     _table[entry] = frame;
 }
 
@@ -41,6 +63,8 @@ int PageTable::getPhysicalAddress(uint32_t pid, uint32_t virtual_address)
     // TODO: implement this!
     int page_number = 0;
     int page_offset = 0;
+    page_number = virtual_address / _page_size;
+    page_offset = virtual_address % _page_size;
 
     // Combination of pid and page number act as the key to look up frame number
     std::string entry = std::to_string(pid) + "|" + std::to_string(page_number);
@@ -49,7 +73,9 @@ int PageTable::getPhysicalAddress(uint32_t pid, uint32_t virtual_address)
     int address = -1;
     if (_table.count(entry) > 0)
     {
-        // TODO: implement this!
+        //calculate physical address
+        address = (_table.at(entry) * _page_size) + page_offset;
+        
     }
 
     return address;
@@ -68,4 +94,9 @@ void PageTable::print()
     {
         // TODO: print all pages
     }
+}
+
+int PageTable::getPageSize()
+{
+    return _page_size;
 }
