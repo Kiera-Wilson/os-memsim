@@ -55,16 +55,56 @@ void Mmu::print()
 {
     int i, j;
 
+
     std::cout << " PID  | Variable Name | Virtual Addr | Size" << std::endl;
     std::cout << "------+---------------+--------------+------------" << std::endl;
     for (i = 0; i < _processes.size(); i++)
     {
+        int pid = _processes[i]->pid;
         for (j = 0; j < _processes[i]->variables.size(); j++)
         {
             // TODO: print all variables (excluding <FREE_SPACE> entries)
+            std::string varName = _processes[i]->variables[j]->name;
+            if(varName!= "<FREE_SPACE>"){
+                uint32_t virtualAddress = _processes[i]->variables[j]->virtual_address;
+                int varSize = _processes[i]->variables[j]->size;
+                printf(" %4d | %-13s | 0x%08X | %-10d \n", pid, varName.c_str(), virtualAddress, varSize);
+            }
+
         }
     }
 }
+
+void Mmu::printProcesses(){
+    std::cout << " PID " <<std::endl;
+    std::cout << "------" << std::endl;
+    //loop through and print the pid of each process
+    for(int i =0; i < _processes.size(); i++){
+        std::cout << _processes[i]->pid <<std::endl;
+    }
+}
+
+void Mmu::printVarValue(){
+    //take in the var name
+    //find the variable
+    //variable size/ variable type = num elements
+    //print up to the first 4 elements
+    //if there are more than 4 elements, print the elemen total after the 1st 4
+
+}
+
+uint32_t Mmu::getMemLeft(){
+    uint memleft = 67108864;
+    for(int i =0; i < _processes.size();i++){
+        std::vector<Variable*> currProcVars;
+        currProcVars = getVariables(_processes[i]->pid);
+        for(int j=0; j<currProcVars.size(); j++){
+            memleft = memleft - currProcVars[j]->size;
+        }
+    }
+    return memleft;
+}
+
 
 int Mmu::findOpenPageSpace(uint32_t pid, int page_size, int page_number, uint32_t virtual_address){
     int pageSpace = page_size;
@@ -143,7 +183,8 @@ std::vector<Variable*> Mmu::getVariables(int pid){
         }
     }
     if(currProc == NULL){
-        std::cout << "Get variables: process not found";
+        //std::cout << "Get variables: process not found";
+        //moved this error message to main.cpp
     }else{
         for (int j =0; j<currProc->variables.size(); j++){
             currProcVars.push_back(currProc->variables[j]);
@@ -208,53 +249,61 @@ uint32_t Mmu::insertVariableOnPage(int pid, int page_size, std::string variable_
     currProcVars = getVariables(pid);
     int dataTypeSize = getVariableSize(type);
     int variableSize = dataTypeSize * num_elements;
-    std::cout << "dataTypeSize:  " << dataTypeSize << std::endl;
-    std::cout << "variable size after assignment: " << variableSize << std::endl;
+    //std::cout << "dataTypeSize:  " << dataTypeSize << std::endl;
+    //std::cout << "variable size after assignment: " << variableSize << std::endl;
     //var to hold the new variables address
     uint32_t newVariableAddress= 0;
     for(int i =0; i<currProcVars.size();i++){
         //if the variable is free space
         if(currProcVars[i]->name == "<FREE_SPACE>")
         {
-            //check if the free space is large enough to hold the new variable
-            if(currProcVars[i]->size>variableSize){
-                int pageNumber = currProcVars[i]->virtual_address/ page_size;
-                //find out how much space there is between the start of the free space and end of the page
-                int pageSpaceLeft = page_size -currProcVars[i]->virtual_address;
-                //offset will tell us if the elements will fit evenly on a page or if they will cross over
-                int offset = (page_size - currProcVars[i]->virtual_address)%dataTypeSize;
-                //if there enough page space to add the entire variable
-                if(pageSpaceLeft > variableSize || offset == 0){
-                    //add the variable, we dont have to worry about elements crossing over bc theres enough room on the page for the whole variable
-                    newVariableAddress = currProcVars[i]->virtual_address;
-                    //add the variable
-                    addVariableToProcess(pid, variable_name, type, variableSize, newVariableAddress);
-                    //change the freespace address to start after the newly inserted variable
-                    currProcVars[i]->virtual_address = newVariableAddress + variableSize;
-                    std::cout << "Variable size: " << variableSize << std::endl;
-                    std::cout << "New Free space adresss: " << currProcVars[i]-> virtual_address << std::endl;
-                    //change size of free space
-                    currProcVars[i]->size= currProcVars[i]->size - variableSize;
-                    //TODO: remove free space if the size is now 0
-                }else if(offset !=0) { //if the elements dont fit evenly, we need to add offset to virtual address
-                    newVariableAddress = currProcVars[i]->virtual_address + offset;
-                    //add variable to process with new offset address
-                    addVariableToProcess(pid, variable_name, type, variableSize, newVariableAddress);
-                    //variable to hold where the original free space variable started
-                    uint32_t freeSpaceAddressHold = currProcVars[i]->virtual_address;
-                    //add a new free space variable to take the place of the offset
-                    addVariableToProcess(pid, "FREE_SPACE", DataType::FreeSpace, offset, freeSpaceAddressHold);
-                    //change the freespace address to start after the newly inserted variable
-                    currProcVars[i]->virtual_address = newVariableAddress + variableSize;
-                    //change size of free space
-                    currProcVars[i]->size= currProcVars[i]->size - variableSize;
+            uint32_t memoryLeft = getMemLeft();
+            if(memoryLeft- variableSize >= 0){
+             //check if the free space is large enough to hold the new variable
+                if(currProcVars[i]->size>variableSize){
+                    int pageNumber = currProcVars[i]->virtual_address/ page_size;
+                    //find out how much space there is between the start of the free space and end of the page
+                    int pageSpaceLeft = page_size -(currProcVars[i]->virtual_address/pageSpaceLeft);
+                // std::cout << "space left on page "<< pageSpaceLeft <<std::endl;
+                    //offset will tell us if the elements will fit evenly on a page or if they will cross over
+                    int offset = (page_size - (currProcVars[i]->virtual_address/page_size))%dataTypeSize;
+                    //if there enough page space to add the entire variable
+                    if(pageSpaceLeft > variableSize || offset == 0){
+                        //add the variable, we dont have to worry about elements crossing over bc theres enough room on the page for the whole variable
+                        newVariableAddress = currProcVars[i]->virtual_address;
+                    // std::cout << "Old free space address which is new variable address" << newVariableAddress << std::endl;
+
+                        //add the variable
+                        addVariableToProcess(pid, variable_name, type, variableSize, newVariableAddress);
+                        //change the freespace address to start after the newly inserted variable
+                        currProcVars[i]->virtual_address = newVariableAddress + variableSize;
+                        //std::cout << "Variable size: " << variableSize << std::endl;
+                        //std::cout << "New Free space adresss: " << currProcVars[i]-> virtual_address << std::endl;
+                        //change size of free space
+                        currProcVars[i]->size= currProcVars[i]->size - variableSize;
+                        //TODO: remove free space if the size is now 0
+                    }else if(offset !=0) { //if the elements dont fit evenly, we need to add offset to virtual address
+                        newVariableAddress = currProcVars[i]->virtual_address + offset;
+                        //add variable to process with new offset address
+                        addVariableToProcess(pid, variable_name, type, variableSize, newVariableAddress);
+                        //variable to hold where the original free space variable started
+                        uint32_t freeSpaceAddressHold = currProcVars[i]->virtual_address;
+                        //add a new free space variable to take the place of the offset
+                        addVariableToProcess(pid, "FREE_SPACE", DataType::FreeSpace, offset, freeSpaceAddressHold);
+                        //change the freespace address to start after the newly inserted variable
+                        currProcVars[i]->virtual_address = newVariableAddress + variableSize;
+                        //change size of free space
+                        currProcVars[i]->size= currProcVars[i]->size - variableSize;
+                    }
+                    //if the free space was the same size as the newly added variable
+                    if(currProcVars[i]->size <= 0){
+                        //free space has a size of 0 or less so just get rid of it
+                        removeVariable(pid, i);
+                    }
                 }
-                //if the free space was the same size as the newly added variable
-                if(currProcVars[i]->size <= 0){
-                    //free space has a size of 0 or less so just get rid of it
-                    removeVariable(pid, i);
-                }
-            
+            }else{
+                //it will exceed memory allocation
+                std::cout << "error: allocation would exceed system memory" <<std::endl;
             }
         }
 

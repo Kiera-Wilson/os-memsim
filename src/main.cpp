@@ -45,8 +45,16 @@ int main(int argc, char **argv)
     {
         // Handle command
         // TODO: implement this!
-        allocateArrayOfCharArrays(&arg_list, 10, 1250);
+        allocateArrayOfCharArrays(&arg_list, 200, 1250);
+
         int arg_listSize = splitString(command, ' ', arg_list); //split up command by spaces
+        std::cout << "arg_list0 : "<< arg_list[0] <<std::endl;
+        std::cout << "arg_list1 : "<< arg_list[1] <<std::endl;
+        std::cout << "arg_list0 , compare print : "<< strcmp(arg_list[0], "print") <<std::endl;
+
+        
+
+
         //1. create
         if (strcmp(arg_list[0], "create") == 0)
         {
@@ -72,7 +80,7 @@ int main(int argc, char **argv)
             if (!validPID)
             {
                 //print error message
-                std::cout << "error: process does not exist" << std::endl;
+                std::cout << "error: process not found" << std::endl;
             }else if (!validVarName)
             {
                 //print error message
@@ -81,7 +89,6 @@ int main(int argc, char **argv)
                 uint32_t offset = std::stoi(arg_list[3]);
                 DataType varType = mmu->getVarDataType(pid, var_name);
                 int typeSize = mmu->getVariableSize(varType);
-
                 for (int i = 4; i < arg_listSize; i++)
                 {
                     if (varType == DataType::Char)
@@ -122,18 +129,58 @@ int main(int argc, char **argv)
         } //4. free
         else if (strcmp(arg_list[0], "free") == 0)
         {
+            uint32_t pid = std::stoi(arg_list[1]);
+            std::string var_name = arg_list[2];
+            //'free' - if <PID> does not exist, print "error: process not found"
+            //'free' - if <var_name> does not exist, print "error: variable not found"
+            bool validVarName = mmu->isValidSetVar(pid, var_name);
+            bool validPID = mmu->isValidPID(pid);
+            //if it is not a valid process
+            if (!validPID)
+            {
+                //print error message
+                std::cout << "error: process not found" << std::endl;
+            }else if (!validVarName)
+            {
+                //print error message
+                std::cout << "error: variable not found " << std::endl;
+            }
 
         } //5. Terminate
         else if (strcmp(arg_list[0], "terminate") == 0)
         {
+            uint32_t pid = std::stoi(arg_list[1]);
+            bool validPID = mmu->isValidPID(pid);
+            //if it is not a valid process
+            if (!validPID)
+            {
+                //print error message
+                std::cout << "error: process not found" << std::endl;
+            }
+
 
         } //6. print
         else if (strcmp(arg_list[0], "print") == 0)
         {
+            //if used inputs page
+            if(strcmp(arg_list[1], "page")==0){
+                page_table->print();
+            }else if(strcmp(arg_list[1], "mmu")==0){
+                mmu->print();
+            }else if(strcmp(arg_list[1], "processes")==0){
+                mmu->printProcesses();
+            }else{
+                std::string inputString = arg_list[1];
+                size_t seperatorPos = inputString.find(":");
+                std::string pidString = inputString.substr(0,seperatorPos);
+                //print the value of the variable for that proces
+                //if it has more than 4 elements, print the first 4 folloed by the number of elements
+                //variable size / type size = # of elements
+            }
         }
         else
         {
-            std::cout << "error: command not recognized";
+            std::cout << "error: command not recognized" << std::endl;
         }
 
         // Get next command
@@ -222,7 +269,7 @@ void allocateVariable(uint32_t pid, std::string var_name, DataType type, uint32_
             std::cout << "New Var Address: " << newVariableAddress << std::endl;
             std::cout << "Var Name : " << var_name << std::endl;
         }
-        mmu->addVariableToProcess(pid, var_name, type, variableSize, newVariableAddress);
+        //mmu->addVariableToProcess(pid, var_name, type, variableSize, newVariableAddress);
     }
 }
 
@@ -234,7 +281,7 @@ void setVariable(uint32_t pid, std::string var_name, uint32_t offset, void *valu
     if (!validPID)
     {
         //print error message
-        std::cout << "error: process does not exist" << std::endl;
+        std::cout << "error: process not found" << std::endl;
         return;
     }
     else if (!validVarName)
@@ -242,32 +289,33 @@ void setVariable(uint32_t pid, std::string var_name, uint32_t offset, void *valu
         //print error message
         std::cout << "error: variable not found " << std::endl;
         return;
-    }
-    //get the processes variables
-    std::vector<Variable *> processVariables;
-    processVariables = mmu->getVariables(pid);
-    //var to holf virtual address
-    uint32_t virtualAddress = 0;
-    DataType varDataType;
-    //find the virtual address of the variable
-    for (int i = 0; i < processVariables.size(); i++)
-    {
-        if (processVariables[i]->name == var_name)
+    }else{
+        //get the processes variables
+        std::vector<Variable *> processVariables;
+        processVariables = mmu->getVariables(pid);
+        //var to holf virtual address
+        uint32_t virtualAddress = 0;
+        DataType varDataType;
+        //find the virtual address of the variable
+        for (int i = 0; i < processVariables.size(); i++)
         {
-            //if we found the variable, store vistual address of it
-            virtualAddress = processVariables[i]->virtual_address;
-            varDataType = processVariables[i]->type;
+            if (processVariables[i]->name == var_name)
+            {
+                //if we found the variable, store vistual address of it
+                virtualAddress = processVariables[i]->virtual_address;
+                varDataType = processVariables[i]->type;
+            }
         }
+        //get the size of the data type
+        int dataTypeSize = mmu->getVariableSize(varDataType);
+        //   - look up physical address for variable based on its virtual address / offset
+        uint32_t newVirtAddress = virtualAddress + (offset * dataTypeSize);
+        int physicalAddress = page_table->getPhysicalAddress(pid, newVirtAddress);
+        //   - insert `value` into `memory` at physical address
+        memcpy((char *)memory + physicalAddress, value, dataTypeSize);
+        //   * note: this function only handles a single element (i.e. you'll need to call this within a loop when setting
+        //           multiple elements of an array)
     }
-    //get the size of the data type
-    int dataTypeSize = mmu->getVariableSize(varDataType);
-    //   - look up physical address for variable based on its virtual address / offset
-    uint32_t newVirtAddress = virtualAddress + (offset * dataTypeSize);
-    int physicalAddress = page_table->getPhysicalAddress(pid, newVirtAddress);
-    //   - insert `value` into `memory` at physical address
-    memcpy((char *)memory + physicalAddress, value, dataTypeSize);
-    //   * note: this function only handles a single element (i.e. you'll need to call this within a loop when setting
-    //           multiple elements of an array)
 }
 
 void freeVariable(uint32_t pid, std::string var_name, Mmu *mmu, PageTable *page_table)
@@ -287,7 +335,6 @@ void terminateProcess(uint32_t pid, Mmu *mmu, PageTable *page_table)
 DataType getDataType(char *input)
 {
     DataType dataType;
-    std::cout << "input is: " << input << std::endl;
     if (strcmp(input, "char") == 0 || strcmp(input, "Char") == 0)
     {
         dataType = DataType::Char;

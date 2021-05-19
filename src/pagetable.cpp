@@ -93,6 +93,19 @@ void PageTable::print()
     for (i = 0; i < keys.size(); i++)
     {
         // TODO: print all pages
+        std::string keyString = keys.at(i);
+        //find the bar seperating the pid from the page #
+        size_t seperatorPos = keyString.find("|");
+        //extract the PID
+        std::string stringPid = keyString.substr(0, seperatorPos);
+        int intPid = std::stoi(stringPid);
+        //extract the page number
+        std::string stringPageNum = keyString.substr(seperatorPos +1);
+        int intPageNum = std::stoi(stringPageNum);
+        //find the frame number
+        int frameNum = _table.at(keys[i]);
+        //print
+        printf(" %4d | %11d | %12d \n", intPid, intPageNum, frameNum);
     }
 }
 

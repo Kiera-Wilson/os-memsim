@@ -41,6 +41,9 @@ public:
     bool isValidVarName(int pid, std::string variable_name);
     bool isValidSetVar(int pid, std::string variable_name);
     DataType getVarDataType(int pid, std::string var_name);
+    uint32_t getMemLeft();
+    void printVarValue();
+    void printProcesses();
     void print();
 };
 
